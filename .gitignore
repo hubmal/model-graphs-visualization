@@ -1,0 +1,12 @@
+# Exported models (large, reproducible with scripts/export_models.py)
+ml_models/
+models/
+
+# Python
+__pycache__/
+.venv/
+.pytest_cache/
+*.egg-info/
+
+# Output of assignment/starter_code.py
+simple_graph.svg
