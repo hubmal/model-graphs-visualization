@@ -12,6 +12,15 @@ from typing import Any
 Shape = tuple[int | None, ...] | None
 
 
+def format_tensor(dtype: str | None, shape: Shape) -> str:
+    """Human-readable tensor type, e.g. 'f32[?, 2048]'. Unknown parts are shown as '?' / '[...]'."""
+    if shape is None:
+        dims = "[...]"
+    else:
+        dims = "[" + ", ".join("?" if dim is None else str(dim) for dim in shape) + "]"
+    return f"{dtype or '?'}{dims}"
+
+
 @dataclass
 class Node:
     """One operation. `node_id` is unique within a graph; `name` may repeat."""
