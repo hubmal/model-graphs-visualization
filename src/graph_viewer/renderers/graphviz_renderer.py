@@ -26,9 +26,11 @@ FILL_BY_OP_TYPE = {
 }
 DEFAULT_FILL = "#FFFFFF"
 
-# Limits for dot's network-simplex and crossing-minimization iterations. Without them, dot
-# didn't finish TinyLlama (1.5k-3k nodes) in 10 minutes; with them it takes 1-3 minutes.
-FAST_LAYOUT_ATTRS = {"nslimit": "2", "nslimit1": "2", "mclimit": "0.3"}
+# Settings for large graphs (measurements in README.md, Performance):
+# - nslimit/nslimit1/mclimit limit dot's network-simplex and crossing-minimization
+#   iterations; without them dot didn't finish TinyLlama (1.5k-3k nodes) in 10 minutes.
+# - splines=line draws straight edges; curved edges crashed dot 2.43 (SIGBUS) on TinyLlama.
+FAST_LAYOUT_ATTRS = {"nslimit": "2", "nslimit1": "2", "mclimit": "0.3", "splines": "line"}
 
 
 class GraphvizRenderer(Renderer):
@@ -48,7 +50,9 @@ class GraphvizRenderer(Renderer):
         except graphviz.ExecutableNotFound as error:
             raise RenderError("Graphviz 'dot' not found; install Graphviz (e.g. apt install graphviz)") from error
         except subprocess.CalledProcessError as error:
-            raise RenderError(f"Graphviz failed: {error.stderr!r}") from error
+            # A negative return code means dot was killed by a signal (e.g. -7 = SIGBUS).
+            details = (error.stderr or b"").decode(errors="replace").strip()
+            raise RenderError(f"Graphviz 'dot' failed with exit code {error.returncode}: {details}") from error
         output_path.parent.mkdir(parents=True, exist_ok=True)
         output_path.write_bytes(svg)
         return output_path

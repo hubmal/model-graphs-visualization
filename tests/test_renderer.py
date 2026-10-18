@@ -106,7 +106,7 @@ def test_large_graphs_get_fast_layout_settings(graph: Graph) -> None:
     large = GraphvizRenderer(fast_layout_threshold=3).to_dot(graph)  # graph has 6 nodes
 
     assert "nslimit" not in small
-    assert "nslimit=2" in large and "mclimit=0.3" in large
+    assert "nslimit=2" in large and "mclimit=0.3" in large and "splines=line" in large
 
 
 def test_unknown_op_type_gets_default_style() -> None:
