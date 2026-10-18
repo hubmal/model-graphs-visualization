@@ -26,10 +26,18 @@ FILL_BY_OP_TYPE = {
 }
 DEFAULT_FILL = "#FFFFFF"
 
+# Limits for dot's network-simplex and crossing-minimization iterations. Without them, dot
+# didn't finish TinyLlama (1.5k-3k nodes) in 10 minutes; with them it takes 1-3 minutes.
+FAST_LAYOUT_ATTRS = {"nslimit": "2", "nslimit1": "2", "mclimit": "0.3"}
+
 
 class GraphvizRenderer(Renderer):
-    def __init__(self, show_attributes: bool = True, max_text_length: int = 48) -> None:
+    def __init__(
+        self, show_attributes: bool = True, max_text_length: int = 48, fast_layout_threshold: int = 1000
+    ) -> None:
         self.show_attributes = show_attributes
+        # Graphs with more nodes than this get a cheaper (slightly less tidy) layout.
+        self.fast_layout_threshold = fast_layout_threshold
         # Long names and attribute values are shortened in the label; full name is in the tooltip.
         self.max_text_length = max_text_length
 
@@ -52,6 +60,8 @@ class GraphvizRenderer(Renderer):
     def to_digraph(self, graph: Graph) -> graphviz.Digraph:
         dot = graphviz.Digraph()
         dot.attr(rankdir="TB", ranksep="0.3")
+        if graph.num_nodes() > self.fast_layout_threshold:
+            dot.attr(**FAST_LAYOUT_ATTRS)
         dot.attr("node", shape="box", style="rounded,filled", fontname="Helvetica", fontsize="10")
         dot.attr("edge", fontname="Helvetica", fontsize="8", arrowsize="0.6")
 

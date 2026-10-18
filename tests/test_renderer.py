@@ -101,6 +101,14 @@ def test_highlight_metadata_becomes_red_border(graph: Graph) -> None:
     assert "color=black" in x_line
 
 
+def test_large_graphs_get_fast_layout_settings(graph: Graph) -> None:
+    small = GraphvizRenderer(fast_layout_threshold=100).to_dot(graph)
+    large = GraphvizRenderer(fast_layout_threshold=3).to_dot(graph)  # graph has 6 nodes
+
+    assert "nslimit" not in small
+    assert "nslimit=2" in large and "mclimit=0.3" in large
+
+
 def test_unknown_op_type_gets_default_style() -> None:
     g = Graph()
     g.add_node("custom", "MyBrandNewOp")
