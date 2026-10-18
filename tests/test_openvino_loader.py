@@ -16,6 +16,7 @@ import openvino as ov
 import openvino.opset13 as ops
 import pytest
 
+from conftest import save_model
 from graph_checks import assert_graph_consistent
 from graph_viewer.graph import Edge, Graph, Node
 from graph_viewer.loaders.base import ModelLoadError, ModelLoader
@@ -26,12 +27,6 @@ TINYLLAMA_XML = REPO_ROOT / "ml_models" / "tinyllama_ov" / "openvino_model.xml"
 
 
 # --- helpers ---------------------------------------------------------------
-
-
-def save(model: ov.Model, directory: Path, name: str = "model") -> Path:
-    path = directory / f"{name}.xml"
-    ov.save_model(model, path, compress_to_fp16=False)
-    return path
 
 
 def nodes_named(graph: Graph, name: str) -> list[Node]:
@@ -48,18 +43,6 @@ def edge_between(graph: Graph, src: Node, dst: Node) -> Edge:
     edges = [e for e in graph.out_edges(src.node_id) if e.dst == dst.node_id]
     assert len(edges) == 1, f"expected one edge {src.name} -> {dst.name}, found {len(edges)}"
     return edges[0]
-
-
-@pytest.fixture
-def linear_model_path(tmp_path: Path) -> Path:
-    """x[?, 4] -> MatMul(w[3, 4], transpose_b) -> Add(b[3]) -> Result"""
-    x = ops.parameter(ov.PartialShape([-1, 4]), ov.Type.f32, name="x")
-    w = ops.constant(np.ones((3, 4), np.float32), name="w")
-    mm = ops.matmul(x, w, transpose_a=False, transpose_b=True, name="mm")
-    b = ops.constant(np.zeros(3, np.float32), name="b")
-    add = ops.add(mm, b, name="add")
-    out = ops.result(add, name="out")
-    return save(ov.Model([out], [x], "linear"), tmp_path)
 
 
 # --- interface -------------------------------------------------------------
@@ -143,7 +126,7 @@ def test_multiple_outputs_and_multiple_edges_between_same_nodes(tmp_path: Path) 
     x = ops.parameter(ov.PartialShape([2, 6]), ov.Type.f16, name="x")
     split = ops.split(x, ops.constant(np.int64(1)), 2, name="split")
     add = ops.add(split.output(0), split.output(1), name="add")
-    path = save(ov.Model([ops.result(add)], [x], "split"), tmp_path)
+    path = save_model(ov.Model([ops.result(add)], [x], "split"), tmp_path)
 
     graph = OpenVINOLoader().load(path)
     split_node, add_node = node_named(graph, "split"), node_named(graph, "add")
@@ -158,7 +141,7 @@ def test_duplicate_node_names_become_separate_nodes(tmp_path: Path) -> None:
     a = ops.parameter(ov.PartialShape([2]), ov.Type.f32, name="dup")
     b = ops.parameter(ov.PartialShape([2]), ov.Type.f32, name="dup")
     add = ops.add(a, b, name="add")
-    path = save(ov.Model([ops.result(add)], [a, b], "dup"), tmp_path)
+    path = save_model(ov.Model([ops.result(add)], [a, b], "dup"), tmp_path)
 
     graph = OpenVINOLoader().load(path)
 
@@ -180,7 +163,7 @@ def test_duplicate_node_names_become_separate_nodes(tmp_path: Path) -> None:
 def test_dynamic_shapes(tmp_path: Path, partial_shape: ov.PartialShape, expected: tuple | None) -> None:
     x = ops.parameter(partial_shape, ov.Type.f32, name="x")
     relu = ops.relu(x, name="relu")
-    path = save(ov.Model([ops.result(relu)], [x], "dyn"), tmp_path)
+    path = save_model(ov.Model([ops.result(relu)], [x], "dyn"), tmp_path)
 
     graph = OpenVINOLoader().load(path)
 
@@ -225,8 +208,17 @@ def test_invalid_xml_raises_model_load_error(tmp_path: Path) -> None:
     path = tmp_path / "broken.xml"
     path.write_text("this is not an OpenVINO IR file")
 
-    with pytest.raises(ModelLoadError, match="broken.xml"):
+    with pytest.raises(ModelLoadError, match="broken.xml: not a valid OpenVINO IR model"):
         OpenVINOLoader().load(path)
+
+
+def test_corrupted_ir_raises_model_load_error(linear_model_path: Path) -> None:
+    """Looks like IR at the start, but the XML is cut off."""
+    text = linear_model_path.read_text()
+    linear_model_path.write_text(text[: len(text) // 2])
+
+    with pytest.raises(ModelLoadError, match="not a valid OpenVINO IR model"):
+        OpenVINOLoader().load(linear_model_path)
 
 
 def test_missing_bin_file_raises_model_load_error(linear_model_path: Path) -> None:

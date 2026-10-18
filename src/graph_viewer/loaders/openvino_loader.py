@@ -25,6 +25,11 @@ class OpenVINOLoader(ModelLoader):
             raise ModelLoadError(f"{path}: expected an OpenVINO IR .xml file, got '{path.suffix}'")
         if not path.is_file():
             raise ModelLoadError(f"{path}: file not found")
+        # IR files start with '<?xml ...?><net ...>'. Checking this first gives a clear error
+        # (OpenVINO would otherwise try other frontends, e.g. TensorFlow, and log noise).
+        with path.open("rb") as file:
+            if b"<net" not in file.read(1024):
+                raise ModelLoadError(f"{path}: not a valid OpenVINO IR model (no <net> element)")
 
         try:
             return ov.Core().read_model(path)

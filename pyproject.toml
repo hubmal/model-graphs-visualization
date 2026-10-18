@@ -9,6 +9,9 @@ dependencies = [
     "openvino>=2025.0",
 ]
 
+[project.scripts]
+model-graph-viewer = "graph_viewer.cli:main"
+
 [project.optional-dependencies]
 # Only needed to export Hugging Face models to OpenVINO IR (optimum-cli).
 export = [
